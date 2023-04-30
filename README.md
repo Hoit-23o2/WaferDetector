@@ -1,0 +1,1 @@
+Wafer cutting path detection based on through line.

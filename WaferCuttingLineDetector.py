@@ -1,6 +1,6 @@
 import cv2
-import os
 import numpy
+import math
 
 import Function
 
@@ -55,7 +55,7 @@ class WaferCuttingLineDetector:
             "_GroupLine": False,
             "_CheckCuttingLineDrawLinePair": False,
             "_CheckCuttingLineDrawCuttingRegion": False,
-            "_GetMinimumAreaCombination": True,
+            "_GetMinimumAreaCombination": False,
         }
 
     def ShowImage(self, image):
@@ -79,22 +79,24 @@ class WaferCuttingLineDetector:
         :param line1: [x1, y1, x2, y2]
         :param line2: [x1, y1, x2, y2]
         :return: 是否成功，角度
+        此函数会检测线的长度，如果过小会返回错误
         """
         l1p1 = numpy.array([line1[0], line1[1]], dtype=numpy.float64)
         l1p2 = numpy.array([line1[2], line1[3]], dtype=numpy.float64)
         l1Vector = l1p1 - l1p2
         l1VLen = numpy.linalg.norm(l1Vector)
-        if l1VLen <= 0.001:
+        if l1VLen <= 0.00001:
             return False, 0
 
         l2p1 = numpy.array([line2[0], line2[1]], dtype=numpy.float64)
         l2p2 = numpy.array([line2[2], line2[3]], dtype=numpy.float64)
         l2Vector = l2p1 - l2p2
         l2VLen = numpy.linalg.norm(l2Vector)
-        if l2VLen <= 0.001:
+        if l2VLen <= 0.00001:
             return False, 0
 
         cosAngle = numpy.dot(l1Vector, l2Vector) / (l1VLen * l2VLen)
+        cosAngle = numpy.clip(cosAngle, -1.0, 1.0)
         angle = numpy.arccos(cosAngle)
         # 弧度制转为角度
         angle = numpy.degrees(angle)
@@ -329,6 +331,12 @@ class WaferCuttingLineDetector:
             cv2.circle(imageDraw, (int(prop.centroid[1]), int(prop.centroid[0])), 2, (0, 0, 255), 5)
         self.ShowImage(imageDraw)
 
+    def _CalTwoPointDistance(self, point1, point2):
+        div1 = point1[0] - point2[0]
+        div2 = point1[1] - point2[1]
+
+        return math.sqrt(div1 * div1 + div2 * div2)
+
     def _DetectLineThrough(self, image):
         """
         :param image: 需要处理的图像
@@ -405,6 +413,12 @@ class WaferCuttingLineDetector:
         return False
 
     def _GetSegmentDistance(self, lc, ls, compare=min):
+        """
+        :param lc: [x1, y1, x2, y2]
+        :param ls:
+        :param compare:
+        :return:
+        """
         lcInterCheck = self._LineInClassToFunction(lc)
         lsInterCheck = self._LineInClassToFunction(ls)
         distance = Function.line_distance(lcInterCheck, lsInterCheck, False)
@@ -456,6 +470,41 @@ class WaferCuttingLineDetector:
                 return True
         return False
 
+    def _ClipAnglePN90MF(self, angle):
+        """
+        :param angle:
+        :return:
+        注意这个函数依赖的是numpy的arccos，所以默认angle是在0到180
+        而且会修改原始数据
+        """
+        angle[angle >= 90] -= 180
+        return angle
+
+    def _CalLineInterAngleMF(self, lineMatrix1, lineMatrix2):
+        """
+        :param lineMatrix1: (num of line, 4) numpy.array
+        :param lineMatrix2: (num of line, 4) numpy.array
+        :return:
+        返回矩阵第i行第j列即 M1中第1条线和M2中第2条线的夹角
+        """
+        vectorM1 = lineMatrix1[:, 0:2] - lineMatrix1[:, 2:4]
+        vectorM1Length = numpy.linalg.norm(vectorM1, axis=1)
+        vectorM1Length = vectorM1Length[numpy.newaxis, :]
+
+        vectorM2 = lineMatrix2[:, 0:2] - lineMatrix2[:, 2:4]
+        vectorM2Length = numpy.linalg.norm(vectorM2, axis=1)
+        vectorM2Length = vectorM2Length[numpy.newaxis, :]
+
+        vectorMulMatrix = numpy.matmul(vectorM1, vectorM2.T)
+        lengthMulMatrix = numpy.matmul(vectorM1Length.T, vectorM2Length)
+
+        cosAngle = vectorMulMatrix / lengthMulMatrix
+        cosAngle = numpy.clip(cosAngle, -1.0, 1.0)
+        angle = numpy.arccos(cosAngle)
+        angle = numpy.degrees(angle)
+
+        return angle
+
     def _FilterOutLine(self, image, props, lineList):
         """
         :param image: 可以用于提取线段的图，二值图像
@@ -475,25 +524,38 @@ class WaferCuttingLineDetector:
             self._FOLShowHLP(image, lineSegmentList)
 
         # 过滤，就是过滤到完全不经过任何线段的贯穿线
-        newLineList = list()
+        # ===========================================================
+        # 矩阵方案，仅角度测试用了矩阵方案
+        npLineList = []
         for line in lineList:
             lc = self._PropsLineToSE(props, line)
-            matched = False
-            for lineSegment in lineSegmentList:
-                ls = lineSegment[0]
-                # 如果存在一条线段和贯穿线夹角相似，因为check为False，angle直接为0，
-                # 但是线段提取函数已经确保最短长度，所以不需要考虑check
-                check, angle = self._CalTwoLineAngle(lc, ls)
-                angle = abs(self._ClipAnglePN90(angle))
-                if angle > self.GetSuperParam("FOLAngleThreshold"):
-                    continue
+            npLineList.append(lc)
+        npLineMatrix = numpy.array(npLineList)
 
-                if self._FOLLineInter(lc, ls, image):
-                    matched = True
-                    break
+        npSegmentList = []
+        for lineSegment in lineSegmentList:
+            ls = lineSegment[0]
+            npSegmentList.append(ls)
+        npSegmentMatrix = numpy.array(npSegmentList)
 
-            if matched:
-                newLineList.append(line)
+        angle = self._CalLineInterAngleMF(npLineMatrix, npSegmentMatrix)
+        angle = self._ClipAnglePN90MF(angle)
+        angle = numpy.abs(angle)
+        angleMatched = angle <= self.GetSuperParam("FOLAngleThreshold")
+
+        angleMatchedSum = numpy.sum(angleMatched, axis=1)
+
+        newLineList = []
+        for lcIndex in range(angleMatched.shape[0]):
+            if angleMatchedSum[lcIndex]:
+                for lsIndex in range(angleMatched.shape[1]):
+                    if angleMatched[lcIndex, lsIndex]:
+                        lc = npLineList[lcIndex]
+                        ls = npSegmentList[lsIndex]
+                        if self._FOLLineInter(lc, ls, image):
+                            newLineList.append(lineList[lcIndex])
+                            break
+        # ===========================================================
 
         if self.GetVisualization("_FilterOutLineResult"):
             self._DVLShowPointAndLine(image, props, newLineList)
@@ -606,25 +668,25 @@ class WaferCuttingLineDetector:
         return x / 4, y / 4
 
     def _GetLinePairsAngle(self, props, linePair1: CCLLinePair, linePair2: CCLLinePair):
+        """
+        :param props:
+        :param linePair1:
+        :param linePair2:
+        :return:
+        不检测直线长度
+        """
         lp1l1 = self._PropsLineToSE(props, linePair1.l1)
         lp1l2 = self._PropsLineToSE(props, linePair1.l2)
         lp2l1 = self._PropsLineToSE(props, linePair2.l1)
         lp2l2 = self._PropsLineToSE(props, linePair2.l2)
 
-        _, angle1 = self._CalTwoLineAngle(lp1l1, lp2l1)
-        angle1 = abs(self._ClipAnglePN90(angle1))
+        lp1l = numpy.array([lp1l1, lp1l2])
+        lp2l = numpy.array([lp2l1, lp2l2])
 
-        _, angle2 = self._CalTwoLineAngle(lp1l1, lp2l2)
-        angle2 = abs(self._ClipAnglePN90(angle2))
-
-        _, angle3 = self._CalTwoLineAngle(lp1l2, lp2l1)
-        angle3 = abs(self._ClipAnglePN90(angle3))
-
-        _, angle4 = self._CalTwoLineAngle(lp1l2, lp2l2)
-        angle4 = abs(self._ClipAnglePN90(angle4))
-
-        angle = min(angle1, angle2, angle3, angle4)
-        return angle
+        angle = self._CalLineInterAngleMF(lp1l, lp2l)
+        angle = self._ClipAnglePN90MF(angle)
+        angle = numpy.abs(angle)
+        return numpy.min(angle)
 
     def _GetLinePairsDistance(self, props, linePair1: CCLLinePair, linePair2: CCLLinePair):
         lp1l1 = self._PropsLineToSE(props, linePair1.l1)
@@ -846,26 +908,33 @@ class WaferCuttingLineDetector:
         """
         # 第一步：形成直线对，保证没有对称重复
         linePairList = list()
+
         for key, value in lineGroup.items():
-            for l1Index in range(len(value)):
-                for l2Index in range(l1Index + 1, len(value)):
-                    l1 = self._PropsLineToSE(props, value[l1Index])
-                    l2 = self._PropsLineToSE(props, value[l2Index])
+            npLineList = []
+            for index in range(len(value)):
+                lc = self._PropsLineToSE(props, value[index])
+                npLineList.append(lc)
+            npLineMatrix = numpy.array(npLineList)
+            angle = self._CalLineInterAngleMF(npLineMatrix, npLineMatrix)
+            angle = self._ClipAnglePN90MF(angle)
+            angle = numpy.abs(angle)
+            angleMatched = angle <= self.GetSuperParam("CCLLinePairInterAngleMax")
+            angleMatchedSum = numpy.sum(angleMatched, axis=1) - 1
 
-                    _, angle = self._CalTwoLineAngle(l1, l2)
-                    angle = self._ClipAngle180(angle)
-                    # 只有两条线的夹角小于一定度数才能判定这两条线能组成一个对
-                    if angle > self.GetSuperParam("CCLLinePairInterAngleMax"):
-                        continue
+            for l1Index in range(angleMatched.shape[0]):
+                if angleMatchedSum[l1Index]:
+                    for l2Index in range(l1Index+1, angleMatched.shape[1]):
+                        if angleMatched[l1Index][l2Index]:
+                            l1 = npLineList[l1Index]
+                            l2 = npLineList[l2Index]
+                            lDistance = self._GetSegmentDistance(l1, l2)
+                            # 线与线之间的距离也就是切割道的宽度限制
+                            if self.GetSuperParam("CCLLineDistanceMin") <= lDistance <= self.GetSuperParam(
+                                    "CCLLineDistanceMax"):
+                                newLinePair = WaferCuttingLineDetector.CCLLinePair(props, value[l1Index],
+                                                                                   value[l2Index])
+                                linePairList.append(newLinePair)
 
-                    lDistance = self._GetSegmentDistance(l1, l2)
-                    # 线与线之间的距离也就是切割道的宽度限制
-                    if self.GetSuperParam("CCLLineDistanceMin") <= lDistance <= self.GetSuperParam("CCLLineDistanceMax"):
-                        newLinePair = WaferCuttingLineDetector.CCLLinePair(props, value[l1Index], value[l2Index])
-                        linePairList.append(newLinePair)
-
-        # =========================================
-        # 绘制成对的线
         if self.GetVisualization("_CheckCuttingLineDrawLinePair"):
             self._DrawLinePairList(checkImage, props, linePairList)
         # =========================================
@@ -907,6 +976,105 @@ class WaferCuttingLineDetector:
             self._CCLDrawCombinationList(image, props, [resultCombination], True, True)
         return resultCombination
 
+    def _PPNormLineDirection(self, line):
+        """
+        :param line: [x1, y1, x2, y2]
+        :return:
+        如果是以水平线向右为初始方向，且顺时针的话，那么基本是判定靠上的点为起点。
+        """
+        if line[1] > line[3]:
+            line = [line[2], line[3], line[0], line[1]]
+        elif line[1] == line[3]:
+            # 如果高度一样则以靠左优先
+            if line[0] > line[2]:
+                line = [line[2], line[3], line[0], line[1]]
+        return line
+
+    def _Postprocess(self, image, props, combination):
+        """
+        :param image:
+        :param props:
+        :param combination:
+        :return:
+        点和图像轴的对应关系依据cv2.line，即得到的坐标点可以直接用到cv2.line上，不需要修改顺序
+        若要用到其他地方，需要结合cv2.line的点和图像的关系调整点的顺序
+        """
+        borderLeft = [0, 0, 0, image.shape[0] - 1]
+        borderTop = [0, 0, image.shape[1] - 1, 0]
+        borderRight = [image.shape[1] - 1, 0, image.shape[1] - 1, image.shape[0] - 1]
+        borderBottom = [0, image.shape[0] - 1, image.shape[1] - 1, image.shape[0] - 1]
+
+        combinationInfo = dict()
+        combinationInfo["cutting_path_num"] = len(combination.linePairList)
+        combinationInfo["cutting_path_list"] = list()
+
+        for linePair in combination.linePairList:
+            centerX, centerY = self._GetLinePairCenter(props, linePair)
+            # 以第一条线为基准
+            l1 = self._PropsLineToSE(props, linePair.l1)
+            vector = (l1[0] - l1[2], l1[1] - l1[3])
+
+            cuttingPathInfo = dict()
+
+            startPoint = (centerX - 100 * vector[0], centerY - 100 * vector[1])
+            endPoint = (centerX + 100 * vector[0], centerY + 100 * vector[1])
+
+            # 不考虑点在图像内的贯穿线
+            cuttingLineThrough = [startPoint[0], startPoint[1], endPoint[0], endPoint[1]]
+            cuttingLineThrough = self._PPNormLineDirection(cuttingLineThrough)
+
+            x1, y1 = Function.line_intersection(self._LineInClassToFunction(borderLeft), [startPoint, endPoint], False)
+            x2, y2 = Function.line_intersection(self._LineInClassToFunction(borderTop), [startPoint, endPoint], False)
+            x3, y3 = Function.line_intersection(self._LineInClassToFunction(borderRight), [startPoint, endPoint], False)
+            x4, y4 = Function.line_intersection(self._LineInClassToFunction(borderBottom), [startPoint, endPoint], False)
+
+            pointPairList = [(x1, y1), (x2, y2), (x3, y3), (x4, y4)]
+            notNonePointPairList = list()
+            for pointPair in pointPairList:
+                if pointPair[0] is not None and pointPair[1] is not None:
+                    notNonePointPairList.append(pointPair)
+
+            pointPairList = notNonePointPairList
+            uniqueIndexList = []
+            for pSelf in range(len(pointPairList)):
+                for pTo in range(len(pointPairList)):
+                    if self._CalTwoPointDistance(pointPairList[pSelf], pointPairList[pTo]) < 0.1:
+                        if pTo not in uniqueIndexList:
+                            uniqueIndexList.append(pTo)
+                        break
+
+            # 考虑点在图像内的贯穿线
+            point1 = pointPairList[uniqueIndexList[0]]
+            point2 = pointPairList[uniqueIndexList[1]]
+            cuttingLine = [point1[0], point1[1], point2[0], point2[1]]
+            cuttingLine = self._PPNormLineDirection(cuttingLine)
+
+            hLine = [0, 0, 1, 0]
+            _, angle = self._CalTwoLineAngle(cuttingLine, hLine)
+
+            cuttingPathLine1 = self._PPNormLineDirection(self._PropsLineToSE(props, linePair.l1))
+            cuttingPathLine2 = self._PPNormLineDirection(self._PropsLineToSE(props, linePair.l2))
+
+            x1, y1 = Function.line_intersection(self._LineInClassToFunction(borderLeft),
+                                                self._LineInClassToFunction(cuttingPathLine1), True)
+            x2, y2 = Function.line_intersection(self._LineInClassToFunction(borderLeft),
+                                                self._LineInClassToFunction(cuttingPathLine2), True)
+            if y1 <= y2:
+                cuttingPathUp = cuttingPathLine1
+                cuttingPathBottom = cuttingPathLine2
+            else:
+                cuttingPathUp = cuttingPathLine2
+                cuttingPathBottom = cuttingPathLine1
+
+            cuttingPathInfo["cutting_line_through"] = cuttingLineThrough
+            cuttingPathInfo["cutting_line"] = cuttingLine
+            cuttingPathInfo["angle_of_cutting_line"] = angle
+            cuttingPathInfo["cutting_path_up"] = cuttingPathUp
+            cuttingPathInfo["cutting_path_bottom"] = cuttingPathBottom
+
+            combinationInfo["cutting_path_list"].append(cuttingPathInfo)
+        return combinationInfo
+
     def DetectWaferCuttingLine(self, image):
         oriEdgeImage = self._DetectEdge(image)
 
@@ -935,4 +1103,6 @@ class WaferCuttingLineDetector:
         # 找相对面积最小的作为输出
         combination = self._GetMinimumAreaCombination(image, props, combinationList)
 
-        return combination
+        CombinationInfo = self._Postprocess(image, props, combination)
+
+        return CombinationInfo
