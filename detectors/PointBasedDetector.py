@@ -49,7 +49,7 @@ class WaferCuttingLineDetector:
             "_DetectEdge": False,
             "_DetectCuttingRegion": False,
             "_DetectPoint": False,
-            "_DetectLineThrough": True,
+            "_DetectLineThrough": False,
             "_FilterOutLineHLP": False,
             "_FilterOutLineResult": False,
             "_GroupLine": False,
