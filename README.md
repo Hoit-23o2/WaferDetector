@@ -5,7 +5,7 @@ Wafer Detector project for DIP 2023, Guangming Lu, HITSZ.
 
 ## Naive Wafer Detector
 
-The key idea of Naive Wafer Detector is to extract the longest line in the image, and then use the line to extract the wafer. The challenge here is that the line tends to be noisy and discontinuous; thus, we need a way to connect these lines. To address the challenges, we introduce a  two-step-processing algorithm, as described below.
+The key idea of Naive Wafer Detector is to extract the longest line in the image, and then use the line to extract the wafer. The challenge here is that the line tends to be noisy and discontinuous; thus, we need a way to connect these lines. To address the challenges, we introduce a three-step-processing algorithm, as described below.
 
 1. Preprocessing - Used for extract the wafer from the background in a coarse granularity.
     - Gaussian Blur
@@ -25,5 +25,12 @@ The key idea of Naive Wafer Detector is to extract the longest line in the image
     - Adjust two selected lines to be parallel
     - Calculate the saw line and its angle, and we're good
 
-Naive Wafer Detector cannot handle the case there are multiple wafers in the image. We further design a detection algorithm as below.
+3. Postprocessing - Used for detect if there are any other wafers.
+    - Fill the wafer with white-black segment
+    - Re-run Processing to try to find the second wafer
+    - Compare the new wafer with the previous one, determine if they are the ``same'' wafer
+    - If they are the same, then we're good 
+    - Otherwise, we obtain a new wafer, and try to find the third one until we cannot find any more possible new wafers
+
+Naive Wafer Detector is able to handle the case where two wafers are crossed. However, it is fragile when there are multiple ``horizontal'' and ``vertical'' wafers in the image since Naive Wafer Detector is primarily designed to detect the longest line in the image. We further design a detection algorithm as below.
 
