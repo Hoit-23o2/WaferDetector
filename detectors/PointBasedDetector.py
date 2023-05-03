@@ -37,7 +37,8 @@ class WaferCuttingLineDetector:
             "CCLLinePairOuterAngleMax": 30,
             "CCLLinePairDistanceMin": 100,
             "CCLCuttingRegionCheckMaxSuccession": 15,
-            "CCLCuttingRegionOffset": 2,
+            "CCLCuttingRegionOffset": 1,
+            "CCLCuttingRegionWidth": 1,
             "CCLEdgeOffset": 1,
         }
 
@@ -57,6 +58,21 @@ class WaferCuttingLineDetector:
             "_CheckCuttingLineDrawCuttingRegion": False,
             "_GetMinimumAreaCombination": False,
         }
+
+        """
+        中间结果存储
+        """
+        self.makeMidOutput = False
+        self.midOutput = dict()
+
+    def SetMakeMidOutput(self, makeMidOutput):
+        self.makeMidOutput = makeMidOutput
+
+    def GetMidOutput(self):
+        return self.midOutput
+
+    def _SetMidOutput(self, name, image):
+        self.midOutput[name] = image
 
     def ShowImage(self, image):
         cv2.imshow("result", image)
@@ -130,6 +146,8 @@ class WaferCuttingLineDetector:
         edgeImage = cv2.addWeighted(x, 0.5, y, 0.5, 0)
         edgeImage = numpy.where(edgeImage > self.GetSuperParam("edgeThreshold"), 255, 0).astype(numpy.uint8)
 
+        if self.makeMidOutput:
+            self._SetMidOutput("DetectEdge", edgeImage)
         if self.GetVisualization("_DetectEdge"):
             self.ShowImage(edgeImage)
 
@@ -203,6 +221,8 @@ class WaferCuttingLineDetector:
 
             image |= oneRegion
 
+        if self.makeMidOutput:
+            self._SetMidOutput("PossibleCleanArea", image)
         if self.GetVisualization("_DetectCuttingRegion"):
             self.ShowImage(image)
             self.ShowImage(255 - image)
@@ -317,7 +337,7 @@ class WaferCuttingLineDetector:
 
         return False
 
-    def _DVLShowPointAndLine(self, image, props, lineList, showOriginImage=False):
+    def _DVLShowPointAndLine(self, image, props, lineList, showWindow, midOutputName, showOriginImage=False):
         imageDraw = numpy.zeros((image.shape[0], image.shape[1], 3), dtype=numpy.uint8)
         if showOriginImage:
             imageDraw[:, :, 0] = image
@@ -327,10 +347,15 @@ class WaferCuttingLineDetector:
             cv2.line(imageDraw,
                      (int(props[line[0]].centroid[1]), int(props[line[0]].centroid[0])),
                      (int(props[line[1]].centroid[1]), int(props[line[1]].centroid[0])),
-                     (255, 255, 255))
+                     (255, 255, 255), lineType=cv2.LINE_AA)
         for prop in props:
             cv2.circle(imageDraw, (int(prop.centroid[1]), int(prop.centroid[0])), 2, (0, 0, 255), 5)
-        self.ShowImage(imageDraw)
+
+        if self.makeMidOutput:
+            self._SetMidOutput(midOutputName, imageDraw)
+
+        if showWindow:
+            self.ShowImage(imageDraw)
 
     def _CalTwoPointDistance(self, point1, point2):
         div1 = point1[0] - point2[0]
@@ -395,12 +420,14 @@ class WaferCuttingLineDetector:
 
         # =========================================
         # 绘制连线和端点
-        if self.GetVisualization("_DetectLineThrough"):
-            self._DVLShowPointAndLine(image, props, lineList)
+        if self.GetVisualization("_DetectLineThrough") or self.makeMidOutput:
+            self._DVLShowPointAndLine(image, props, lineList,
+                                      self.GetVisualization("_DetectLineThrough"),
+                                      "ThroughLinesCandidate")
         # =========================================
         return props, lineList
 
-    def _FOLShowHLP(self, image, lineSegmentList):
+    def _FOLShowHLP(self, image, lineSegmentList, showWindow):
         imageDraw = numpy.zeros((image.shape[0], image.shape[1], 3), dtype=numpy.uint8)
         imageDraw[:, :, 0] = image
         imageDraw[:, :, 1] = image
@@ -409,8 +436,13 @@ class WaferCuttingLineDetector:
             cv2.line(imageDraw,
                      (int(lineSegment[0][0]), int(lineSegment[0][1])),
                      (int(lineSegment[0][2]), int(lineSegment[0][3])),
-                     (0, 0, 255))
-        self.ShowImage(imageDraw)
+                     (0, 0, 255), lineType=cv2.LINE_AA)
+
+        if self.makeMidOutput:
+            self._SetMidOutput("HoughLineP", imageDraw)
+
+        if showWindow:
+            self.ShowImage(imageDraw)
 
     def _PropsLineToSE(self, props, line):
         """
@@ -557,8 +589,8 @@ class WaferCuttingLineDetector:
                                           self.GetSuperParam("FOLHLPMinLineLength"),
                                           self.GetSuperParam("FOLHLPMaxLineGap"))
 
-        if self.GetVisualization("_FilterOutLineHLP"):
-            self._FOLShowHLP(image, lineSegmentList)
+        if self.GetVisualization("_FilterOutLineHLP") or self.makeMidOutput:
+            self._FOLShowHLP(image, lineSegmentList, self.GetVisualization("_FilterOutLineHLP"))
 
         # 过滤，就是过滤到完全不经过任何线段的贯穿线
         # ===========================================================
@@ -594,8 +626,10 @@ class WaferCuttingLineDetector:
                             break
         # ===========================================================
 
-        if self.GetVisualization("_FilterOutLineResult"):
-            self._DVLShowPointAndLine(image, props, newLineList)
+        if self.GetVisualization("_FilterOutLineResult") or self.makeMidOutput:
+            self._DVLShowPointAndLine(image, props, newLineList,
+                                      self.GetVisualization("_FilterOutLineResult"),
+                                      "FilterOutLineResult")
 
         return newLineList
 
@@ -644,7 +678,7 @@ class WaferCuttingLineDetector:
         # 分组绘制线
         if self.GetVisualization("_GroupLine"):
             for key, value in lineGroup.items():
-                self._DVLShowPointAndLine(image, props, value)
+                self._DVLShowPointAndLine(image, props, value, self.GetVisualization("_GroupLine"), "None")
         # =========================================
         return lineGroup
 
@@ -664,12 +698,12 @@ class WaferCuttingLineDetector:
             cv2.line(imageDraw,
                      (int(l1[0]), int(l1[1])),
                      (int(l1[2]), int(l1[3])),
-                     (255, 255, 255))
+                     (255, 255, 255), lineType=cv2.LINE_AA)
 
             cv2.line(imageDraw,
                      (int(l2[0]), int(l2[1])),
                      (int(l2[2]), int(l2[3])),
-                     (255, 255, 255))
+                     (255, 255, 255), lineType=cv2.LINE_AA)
         for prop in props:
             cv2.circle(imageDraw, (int(prop.centroid[1]), int(prop.centroid[0])), 2, (0, 0, 255), 5)
         self.ShowImage(imageDraw)
@@ -760,9 +794,17 @@ class WaferCuttingLineDetector:
             self.linePairList = linePairList
 
     def _CCLMakeCuttingRegion(self, image, imageCuttingRegionOne, props, linePair):
+        """
+        :param image:
+        :param imageCuttingRegionOne:
+        :param props:
+        :param linePair:
+        :return:
+        """
         l1 = self._PropsLineToSE(props, linePair.l1)
         l2 = self._PropsLineToSE(props, linePair.l2)
 
+        # 这里的画线不是为了可视化，不能加抗锯齿
         cv2.line(imageCuttingRegionOne,
                  (int(l1[0]), int(l1[1])),
                  (int(l1[2]), int(l1[3])),
@@ -808,10 +850,19 @@ class WaferCuttingLineDetector:
         imageDilatedLast = image
         imageDilatedCurrent = image
 
+        # 只考虑膨胀为一条线
+        # for i in range(self.GetSuperParam("CCLCuttingRegionOffset")):
+        #     tmp = imageDilatedCurrent
+        #     imageDilatedCurrent = cv2.dilate(imageDilatedCurrent, s33Kernel)
+        #     imageDilatedLast = tmp
+
+        # 考虑膨胀为一个面积
         for i in range(self.GetSuperParam("CCLCuttingRegionOffset")):
-            tmp = imageDilatedCurrent
+            imageDilatedLast = cv2.dilate(imageDilatedLast, s33Kernel)
+        imageDilatedCurrent = imageDilatedLast
+        for i in range(self.GetSuperParam("CCLCuttingRegionWidth")):
             imageDilatedCurrent = cv2.dilate(imageDilatedCurrent, s33Kernel)
-            imageDilatedLast = tmp
+
         imageDilatedDelta = imageDilatedCurrent - imageDilatedLast
 
         imageErodedLast = image
@@ -891,12 +942,12 @@ class WaferCuttingLineDetector:
             cv2.line(imageRegion,
                      (int(l1[0]), int(l1[1])),
                      (int(l1[2]), int(l1[3])),
-                     (255, 255, 255), thickness=2)
+                     (255, 255, 255), thickness=2, lineType=cv2.LINE_AA)
 
             cv2.line(imageRegion,
                      (int(l2[0]), int(l2[1])),
                      (int(l2[2]), int(l2[3])),
-                     (255, 255, 255), thickness=2)
+                     (255, 255, 255), thickness=2, lineType=cv2.LINE_AA)
 
             imageLabeled = measure.label(255 - imageRegion, 0, connectivity=2)
             x, y = self._GetLinePairCenter(props, linePair)
@@ -907,12 +958,12 @@ class WaferCuttingLineDetector:
         cv2.line(image,
                  (int(l1[0]), int(l1[1])),
                  (int(l1[2]), int(l1[3])),
-                 (0, 0, 255), thickness=2)
+                 (0, 0, 255), thickness=2, lineType=cv2.LINE_AA)
 
         cv2.line(image,
                  (int(l2[0]), int(l2[1])),
                  (int(l2[2]), int(l2[3])),
-                 (0, 0, 255), thickness=2)
+                 (0, 0, 255), thickness=2, lineType=cv2.LINE_AA)
 
         return image
 
@@ -1036,6 +1087,9 @@ class WaferCuttingLineDetector:
         点和图像轴的对应关系依据cv2.line，即得到的坐标点可以直接用到cv2.line上，不需要修改顺序
         若要用到其他地方，需要结合cv2.line的点和图像的关系调整点的顺序
         """
+        if combination is None:
+            return None
+
         borderLeft = [0, 0, 0, image.shape[0] - 1]
         borderTop = [0, 0, image.shape[1] - 1, 0]
         borderRight = [image.shape[1] - 1, 0, image.shape[1] - 1, image.shape[0] - 1]
@@ -1113,6 +1167,8 @@ class WaferCuttingLineDetector:
         return combinationInfo
 
     def DetectWaferCuttingLine(self, image):
+        self.midOutput = dict()
+
         oriEdgeImage = self._DetectEdge(image)
 
         cuttingImage = self._DetectCuttingRegion(oriEdgeImage)
