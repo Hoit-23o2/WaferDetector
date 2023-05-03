@@ -2,7 +2,6 @@
 
 Wafer Detector project for DIP 2023, Guangming Lu, HITSZ.
 
-
 ## Naive Wafer Detector
 
 The key idea of Naive Wafer Detector is to extract the longest line in the image, and then use the line to extract the wafer. The challenge here is that the line tends to be noisy and discontinuous; thus, we need a way to connect these lines. To address the challenges, we introduce a three-step-processing algorithm, as described below.
@@ -34,3 +33,26 @@ The key idea of Naive Wafer Detector is to extract the longest line in the image
 
 Naive Wafer Detector is able to handle the case where two wafers are crossed. However, it is fragile when there are multiple ``horizontal'' and ``vertical'' wafers in the image since Naive Wafer Detector is primarily designed to detect the longest line in the image. We further design a detection algorithm as below.
 
+## Point-based LineThrough Wafer Detector
+
+The key idea of Point-based LineThrough Wafer Detector is to carefully determine the wafer sawing line based on the border points, enabling the more precise and robust detection of wafers sawing line. The challenges here are that the border points are noisy. To address the challenges, we introduce a clean-area based algorithm, as described below.
+
+## Experimental Results
+
+1. Naive Wafer Detector Result
+    - Present the result
+
+2. Point-based LineThrough Wafer Detector Result (Optimal)
+    - Present the result
+    
+3. Comparison 
+    - Subtraction
+    - Present the result
+
+## Discussion
+
+    - Performance
+
+    - Robustness
+
+## Conclusion
