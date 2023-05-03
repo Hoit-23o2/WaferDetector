@@ -32,8 +32,9 @@ for fid, wafer_name in enumerate(os.listdir(dataset_path)):
         print("further_process: ", further_process)
         
         if not further_process:
-            for wafer_res in wafers:
+            for wafer_id, wafer_res in enumerate(wafers):
                 naive.artist_draw_wafer(orig_img, wafer_res)
+                naive.store_wafer_res(os.path.join(naive.fnl_dir, wafer_name + "wafer-res-" + str(wafer_id)), wafer_res)
             naive.store_img(os.path.join(naive.fnl_dir, wafer_name), orig_img)
         else:
             mid_res = naive.process(img, True, threshold = 0.3, error = 100, further_process = True)
@@ -41,7 +42,7 @@ for fid, wafer_name in enumerate(os.listdir(dataset_path)):
             wafers.append(wafer_res)
 
 # let's display the results
-fig, ax = plt.subplots(4, 4, figsize = (16, 12), dpi = 300)
+fig, ax = plt.subplots(5, 4, figsize = (14, 12), dpi = 300)
 titles = ["(a) original", "(b) pre-processed", "(c) mid-processed", "(d) final"]
 for fid, wafer_name in enumerate(os.listdir(dataset_path)):
     # display original image
@@ -58,7 +59,7 @@ for fid, wafer_name in enumerate(os.listdir(dataset_path)):
     #     ax[fid, i].set_xticks([])
     #     ax[fid, i].set_yticks([])
     
-    if fid == 3:
+    if fid == 4:
         for i in range(4):
             ax[fid, i].set_xlabel(titles[i])
 
