@@ -1,0 +1,59 @@
+{
+    "cutting_path_num": 2,
+    "cutting_path_list": [
+        {
+            "cutting_line_through": [
+                80299.5,
+                -603.5,
+                -79500.5,
+                1196.5
+            ],
+            "cutting_line": [
+                799.0,
+                292.0,
+                -0.0,
+                301.0
+            ],
+            "angle_of_cutting_line": 179.35464304343128,
+            "cutting_path_up": [
+                799.0,
+                256.0,
+                0.0,
+                265.0
+            ],
+            "cutting_path_bottom": [
+                799.0,
+                328.0,
+                0.0,
+                337.0
+            ]
+        },
+        {
+            "cutting_line_through": [
+                -274.0,
+                -59600.5,
+                926.0,
+                60199.5
+            ],
+            "cutting_line": [
+                323.0,
+                -0.0,
+                329.0,
+                599.0
+            ],
+            "angle_of_cutting_line": 89.4261048742541,
+            "cutting_path_up": [
+                359.0,
+                0.0,
+                365.0,
+                599.0
+            ],
+            "cutting_path_bottom": [
+                287.0,
+                0.0,
+                293.0,
+                599.0
+            ]
+        }
+    ]
+}

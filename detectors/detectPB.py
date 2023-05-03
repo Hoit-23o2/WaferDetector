@@ -111,7 +111,6 @@ if __name__ == "__main__":
     imageNameList = os.listdir(imageDir)
     for imageName in imageNameList:
         imagePath = os.path.join(imageDir, imageName)
-        print(imagePath)
         image = cv2.imread(imagePath)
 
         combinationInfo = detector.DetectWaferCuttingLine(image)
