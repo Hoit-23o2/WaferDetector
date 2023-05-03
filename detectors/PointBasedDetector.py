@@ -592,6 +592,10 @@ class WaferCuttingLineDetector:
         if self.GetVisualization("_FilterOutLineHLP") or self.makeMidOutput:
             self._FOLShowHLP(image, lineSegmentList, self.GetVisualization("_FilterOutLineHLP"))
 
+        # 这里设置为如果图中没有任何线段，那么就任何贯穿线都没有意义
+        if len(lineSegmentList) == 0:
+            return []
+
         # 过滤，就是过滤到完全不经过任何线段的贯穿线
         # ===========================================================
         # 矩阵方案，仅角度测试用了矩阵方案
@@ -989,7 +993,7 @@ class WaferCuttingLineDetector:
 
     def _CheckCuttingLine(self, checkImage, props, lineGroup):
         """
-        :param cuttingImage: 255为可切割的区域
+        :param checkImage: 255为可切割的区域
         :param props:
         :param lineGroup:
         :return:
@@ -1026,6 +1030,9 @@ class WaferCuttingLineDetector:
         if self.GetVisualization("_CheckCuttingLineDrawLinePair"):
             self._DrawLinePairList(checkImage, props, linePairList)
         # =========================================
+
+        if len(linePairList) == 0:
+            return []
 
         # 第二步：检查
         validLinePairList = linePairList.copy()
@@ -1181,8 +1188,12 @@ class WaferCuttingLineDetector:
         pointImage = self._DetectPoint(edgeImage)
 
         props, lineList = self._DetectLineThrough(pointImage)
+        if len(lineList) == 0:
+            return None
 
         lineList = self._FilterOutLine(edgeImage, props, lineList)
+        if len(lineList) == 0:
+            return None
 
         # 分组
         # 可能会导致一些差值很小的线被分到不同组
