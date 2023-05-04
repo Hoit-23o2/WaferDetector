@@ -1,1 +1,1 @@
-{'line1': array([[ 547,  267, 1240,  267]], dtype=int32), 'line2': array([[ 547,  389, 1240,  389]], dtype=int32), 'saw_line': [[547, 328, 1240, 328]], 'angle': 0.0, 'direction': 'horizontal'}
+{'line1': array([[353, 183, 799, 183]], dtype=int32), 'line2': array([[353, 250, 799, 250]], dtype=int32), 'saw_line': [[353, 216, 799, 216]], 'angle': 0.0, 'direction': 'horizontal'}

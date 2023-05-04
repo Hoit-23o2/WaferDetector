@@ -82,6 +82,7 @@ class NaiveDetector(WaferDetector):
         img[img != 255] = 0
         img = WaferDetector.edge_erosion(img, 5)
         img = WaferDetector.edge_dilation(img, 5)
+        img[img >= 200] = 255
         
         return img
     

@@ -78,6 +78,12 @@ def CalcPrecision(sawing_lines, annotation, golden):
         golden_sawing_line = rule["cutting_line"]
         center_of_golden = [(golden_sawing_line[0] + golden_sawing_line[2]) / 2, (golden_sawing_line[1] + golden_sawing_line[3]) / 2]
         center_of_sawing_line = [(sawing_line[0] + sawing_line[2]) / 2, (sawing_line[1] + sawing_line[3]) / 2]
+        
+        print("my_angle: " + str(angle))
+        print("my_center: " +  ", ".join(str(item) for item in center_of_sawing_line))
+        print("golden_angle: " + str(rule["cutting_line_angle"]))
+        print("golden_center: " +  ", ".join(str(item) for item in center_of_golden))
+
         import math
         res = math.sqrt((angle - rule["cutting_line_angle"]) ** 2 + (center_of_golden[0] - center_of_sawing_line[0]) ** 2 + (center_of_golden[1] - center_of_sawing_line[1]) ** 2)
         reses.append(res)
@@ -94,6 +100,20 @@ res_by_ND = [
 
 print("=ND=")
 for res in res_by_ND:
+    precisions = CalcPrecision(res[0], annotation, res[1])
+    print("===" + res[1] + "===")
+    for precision in precisions:
+        print(precision)
+
+res_by_ND_wo_adjustment = [
+    ([[0, 309, 799, 295]], "1"),
+    ([[1, 275, 799, 338]], "2"),
+    ([[0, 347, 799, 263]], "3"),
+    ([[322, 0, 332, 556], [0, 305, 799, 291]], "4"),
+]
+
+print("=ND_wo=")
+for res in res_by_ND_wo_adjustment:
     precisions = CalcPrecision(res[0], annotation, res[1])
     print("===" + res[1] + "===")
     for precision in precisions:

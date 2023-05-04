@@ -42,9 +42,32 @@ for fid, wafer_name in enumerate(os.listdir(dataset_path)):
             wafers.append(wafer_res)
 
 # let's display the results
-fig, ax = plt.subplots(5, 4, figsize = (14, 12), dpi = 300)
-titles = ["(a) original", "(b) pre-processed", "(c) mid-processed", "(d) final"]
-for fid, wafer_name in enumerate(os.listdir(dataset_path)):
+# fig, ax = plt.subplots(5, 4, figsize = (14, 12), dpi = 300)
+# titles = ["(a) original", "(b) pre-processed", "(c) post-processed", "(d) final"]
+# for fid, wafer_name in enumerate(os.listdir(dataset_path)):
+#     # display original image
+#     ax[fid, 0].imshow(cv2.imread(os.path.join(dataset_path, wafer_name)))
+#     # display pre-processed image
+#     ax[fid, 1].imshow(cv2.imread(os.path.join(naive.pre_dir, "pre-" + wafer_name)))
+#     # display mid image
+#     ax[fid, 2].imshow(cv2.imread(os.path.join(naive.mid_dir, "pre-" + wafer_name)))
+#     # display final image
+#     ax[fid, 3].imshow(cv2.imread(os.path.join(naive.fnl_dir, wafer_name)))
+    
+#     # remove ticks for every
+#     # for i in range(4):
+#     #     ax[fid, i].set_xticks([])
+#     #     ax[fid, i].set_yticks([])
+    
+#     if fid == 4:
+#         for i in range(4):
+#             ax[fid, i].set_xlabel(titles[i])
+
+fig, ax = plt.subplots(4, 4, figsize = (12, 9), dpi = 300)
+titles = ["(a) original", "(b) pre-processed", "(c) post-processed", "(d) final"]
+wafer_names = os.listdir(dataset_path)
+wafer_names.remove("4-noise.jpg")
+for fid, wafer_name in enumerate(wafer_names):
     # display original image
     ax[fid, 0].imshow(cv2.imread(os.path.join(dataset_path, wafer_name)))
     # display pre-processed image
@@ -59,9 +82,9 @@ for fid, wafer_name in enumerate(os.listdir(dataset_path)):
     #     ax[fid, i].set_xticks([])
     #     ax[fid, i].set_yticks([])
     
-    if fid == 4:
+    if fid == 3:
         for i in range(4):
-            ax[fid, i].set_xlabel(titles[i])
+            ax[fid, i].set_xlabel(titles[i], fontsize=20)
 
 
 plt.tight_layout()
