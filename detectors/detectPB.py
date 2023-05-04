@@ -38,7 +38,7 @@ def MakeMidOutput(imageName, midOutput, showWindow, saveResult=False, outputDir=
     for kIndex, key in enumerate(midOutputKeys):
         midOutputImage = MidOutputToPyplot(midOutput[key])
         ax[kIndex].imshow(midOutputImage)
-        ax[kIndex].set_title(key)
+        # ax[kIndex].set_title(key)
 
     if showWindow:
         pyplot.show()
